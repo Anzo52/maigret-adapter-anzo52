@@ -1,35 +1,28 @@
-from typing import List
+from .adapter import Service
 import aiohttp
+from typing import Mapping
 
-from .mailcat.mailcat import CHECKERS, uaLst
+class Site:
+    def __init__(self, name, check=None):
+        self.name = name
+        self.check = check
 
-from .adapter import Service, Site
+def from_func_list(func_list) -> dict[str, Site]:
+    return {f.__name__: Site(f.__name__, check=f) for f in func_list}
 
-
-def from_func_list(func_list) -> List[Site]:
-    sites = {}
-
-    for f in func_list:
-        name = f.__name__
-        site = Site(name)
-        site.check = f
-        sites[name] = site
-
-    return sites
-
+CHECKERS = []  # Define the CHECKERS variable
 
 class MailcatService(Service):
     def __init__(self):
-        self.session = aiohttp.ClientSession
-        self.sites = from_func_list(CHECKERS)
+        self.session = aiohttp.ClientSession()
+        self.sites: Mapping[str, Site] = from_func_list(CHECKERS)
 
     async def check(self, site, username):
-        result = {'status': None}
-
         check_result = await site.check(username, self.session)
 
-        if check_result:
-            result.update(check_result)
-            result['status'] = 'found'
+        result = {
+            'status': check_result.get('status', 'found') if check_result else None
+        }
+        result |= (check_result or {})
 
         return result
